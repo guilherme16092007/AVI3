@@ -101,7 +101,7 @@ export function traduzirErro(erro: unknown): RespostaErro {
     if (e.code === "P2025") {
       return { statusCode: 404, erro: "NAO_ENCONTRADO", mensagem: "Registro nao encontrado." };
     }
-    if (/violates check constraint|Movimentacao e imutavel/i.test(mensagem)) {
+    if (e.code === "P2004" || /violates check constraint|Movimentacao e imutavel/i.test(mensagem)) {
       return {
         statusCode: 422,
         erro: "RESTRICAO_BANCO",

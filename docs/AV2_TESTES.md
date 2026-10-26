@@ -2,30 +2,31 @@
 
 Este documento diz **exatamente** o que foi verificado, como, e o que ainda precisa ser confirmado no seu ambiente. A separação é deliberada: só afirmo como "verificado" o que foi realmente executado.
 
-## 1. O que foi executado (ambiente de desenvolvimento, sem acesso à internet)
+## 1. O que foi executado nesta validação (Windows, sem PostgreSQL disponível)
 
 | Verificação | Comando | Resultado |
 |---|---|---|
-| Regras de negócio da AV2 (camada de serviços, repositórios em memória) | `npx tsx tests/server/servicos.test.ts` | **90/90** |
-| Funções puras: ambiente, tradução de erros → HTTP, datas, paginação | `npx tsx tests/server/utilitarios.test.ts` | **33/33** |
-| AV1 (regressão): compilação `strict` e jornada completa | `npx tsc -p tsconfig.json` + `npx tsx tests/journey.test.ts` | 0 erros · **40/40** |
-| Compilação `strict` do servidor + testes + seed | `tsc` com *stubs* de tipos para Fastify/Prisma | 0 erros (ver limite abaixo) |
-| JSON Schemas (aceitam/recusam os payloads certos) | Ajv local, mesmas opções do Fastify | **32/32** casos |
-| Consistência `schema.prisma` ↔ migrações SQL (colunas, tipos, nulidade, defaults, índices, UNIQUEs, FKs, enums, colunas citadas nos CHECKs) | Script de conferência | Sem divergências |
+| Regressão AV1 + regras de serviço/utilitários AV2 (inclui o tratamento de `P2004`) | `npm test` | AV1 **40/40**, serviços **90/90**, utilitários **34/34** |
+| Rotas HTTP com Fastify e repositórios em memória | `npm run test:http` | **55/55** |
+| Build AV1 | `npm run build` | Exit code 0 |
+| Build do servidor e geração do Prisma Client | `npm run build:server` | Exit code 0 |
+| Validação do schema Prisma | `npx prisma validate` | Schema válido |
+| Proteção do seed em produção | `NODE_ENV=production npm run db:seed` (forma equivalente no PowerShell) | Seed recusado antes de acessar o banco |
+| Smoke test do processo compilado sem banco | Servidor iniciado com URL fictícia e `GET /saude` | HTTP **503**, banco indicado como indisponível |
 
 O que os testes de serviços cobrem: autenticação (credencial errada e usuário inexistente com a mesma resposta; inativo), matriz de permissões por papel, CNPJ (dígitos, duplicidade), contrato (vigência, número único, atualização com versão), janela de datas do lote (futuro, > 90 dias, parâmetro global), criação de lote com equipamentos, **rollback** (falha no meio desfaz o lote e os equipamentos; falha ao gravar a movimentação não altera o status), triagem, máquina de estados, regra da justificativa, **conflito de versão**, rastreabilidade em ordem cronológica, relatório (valores exatos e polimorfismo por tipo) e paginação.
 
-## 2. O que NÃO foi executado aqui (e por quê)
+Os testes de serviço/utilitários e HTTP usam repositórios em memória; não são testes de integração com PostgreSQL. O teste HTTP usa o Fastify real por `app.inject`.
 
-O ambiente em que o código foi desenvolvido **não tem acesso ao npm nem a um PostgreSQL**. Portanto **não foram executados**:
+## 2. O que NÃO foi executado nesta validação (e por quê)
 
-- `npm install` com Fastify, `@fastify/jwt` e Prisma, e a compilação contra as **tipagens reais** dessas bibliotecas (a checagem de tipos usou *stubs* que aproximam a API; valida sintaxe, *imports* e consistência interna, mas não a compatibilidade exata com as bibliotecas).
-- `npx prisma generate`, `migrate deploy` e o **SQL das migrações em um PostgreSQL real** (a consistência com o schema foi conferida por script, e a sintaxe revisada, mas não executada).
-- O **seed** contra o banco.
-- O **servidor** subindo, o *graceful shutdown* e o `tests/server/http.test.ts` (app Fastify real). Esse teste foi escrito e passa na checagem de tipos, mas só pode rodar com as dependências instaladas.
-- Comportamento transacional real do PostgreSQL (o *rollback* foi comprovado apenas no simulador em memória; o uso correto de `$transaction` foi revisado, não executado).
+- `npx prisma migrate deploy` e aplicação das migrações em PostgreSQL.
+- Seed em um banco de testes. A proteção de `NODE_ENV=production` foi executada sem conectar ao banco; o preenchimento dos dados permanece sem validação de integração.
+- Testes de constraints, chaves estrangeiras, trigger append-only e erros reais do driver PostgreSQL.
+- Rollback e concorrência otimista em transações reais do PostgreSQL.
+- Instalação limpa com `npm ci` e execução em Windows 10 mínimo ou Ubuntu 24.04.03+.
 
-**Se algo falhar nesses pontos na sua máquina, é esperado que seja um ajuste pequeno (versão de biblioteca ou detalhe de tipagem); me envie a mensagem de erro completa.**
+O PostgreSQL não estava acessível em `127.0.0.1:5432`, e o daemon Docker Desktop não estava ativo. Não foi usada a URL do `.env` para evitar atingir um banco desconhecido. A compilação foi feita contra as dependências reais instaladas, não contra stubs.
 
 ## 3. Roteiro de verificação no seu ambiente
 
@@ -37,7 +38,7 @@ Execute na ordem; cada passo indica o resultado esperado.
 npm install
 npm run build:server        # gera o Prisma Client e compila (esperado: sem erros)
 npm run build               # AV1 continua compilando (esperado: sem erros)
-npm test                    # AV1 (40) + AV2 (90 + 33), sem banco
+npm test                    # AV1 (40) + AV2 (90 + 34), sem banco
 npm run test:http           # rotas HTTP com o Fastify real (esperado: todas OK)
 ```
 
@@ -48,6 +49,8 @@ docker compose up -d        # ou PostgreSQL local; ajuste DATABASE_URL no .env
 npx prisma migrate deploy   # esperado: 2 migrações aplicadas
 npm run db:seed             # esperado: resumo com usuários e IDs de teste
 ```
+
+Execute migrações e seed somente em um banco de desenvolvimento/teste isolado. O seed recusa `NODE_ENV=production`; `SEED_RESET=1` é destrutivo e apaga os dados existentes desse banco.
 
 ### 3.3 Constraints no banco (via `psql`, ou `docker exec -it greencode-db psql -U greencode`)
 

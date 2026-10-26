@@ -49,7 +49,7 @@ npm run start:server            # ou, em desenvolvimento: npm run dev:server
 
 O servidor sobe em `http://127.0.0.1:3000` (porta configurável por `PORT`). Teste: `GET /saude`.
 
-O seed cria quatro usuários de **desenvolvimento** (um por papel): `admin / Admin@12345`, `operador / Operador@123`, `gestor / Gestor@1234` e `auditor / Auditor@123`.
+O seed cria quatro usuários de **desenvolvimento** (um por papel): `admin / Admin@12345`, `operador / Operador@123`, `gestor / Gestor@1234` e `auditor / Auditor@123`. Ele recusa execução quando `NODE_ENV=production`; nunca use essas credenciais em produção.
 
 ### Primeira chamada (login + consulta)
 
@@ -79,7 +79,7 @@ Todos os endpoints, corpos, códigos de status e exemplos estão em **[docs/API.
 | `npm run start:server` | Inicia a API compilada (`dist/server/server.js`). |
 | `npm run dev:server` | Inicia a API em modo desenvolvimento, com recarga automática (`tsx watch`). |
 | `npm run prisma:migrate` | Aplica as migrações versionadas (`prisma migrate deploy`). |
-| `npm run db:seed` | Popula o banco (idempotente; `SEED_RESET=1` apaga tudo e recria). |
+| `npm run db:seed` | Popula o banco (idempotente; recusa `NODE_ENV=production`; `SEED_RESET=1` apaga tudo e recria). |
 | `npm test` | Testes da AV1 **e** da AV2 (sem banco de dados). |
 | `npm run test:http` | Testa as rotas HTTP (app Fastify real + repositórios em memória). |
 

@@ -146,11 +146,7 @@ async function popular(prisma: PrismaClient): Promise<void> {
   console.log("\n==============================================================");
   console.log(" Seed concluido");
   console.log("==============================================================");
-  console.log(" Usuarios (senhas de DESENVOLVIMENTO; nunca use em producao):");
-  console.log(`   admin    / ${SENHAS.admin}     (ADMINISTRADOR)`);
-  console.log(`   operador / ${SENHAS.operador}   (OPERADOR_CADASTRO)`);
-  console.log(`   gestor   / ${SENHAS.gestor}    (GESTOR_ALMOXARIFADO)`);
-  console.log(`   auditor  / ${SENHAS.auditor}    (AUDITOR)`);
+  console.log(" Usuarios de desenvolvimento criados (credenciais documentadas no README; nunca use em producao).");
   console.log("\n Registros para testar as regras manualmente:");
   console.log(`   Equipamento AGUARDANDO_TRIAGEM (desmonte deve falhar com 422): ${id(lote1, "BC-H-0002")}`);
   console.log(`   Equipamento TRIADO (queda BOM->RUIM exige justificativa)     : ${id(lote1, "BC-H-0001")}`);
@@ -162,6 +158,10 @@ async function popular(prisma: PrismaClient): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("O seed de desenvolvimento nao pode ser executado com NODE_ENV=production.");
+  }
+
   const prisma = new PrismaClient();
   try {
     const existentes = (await prisma.usuario.count()) + (await prisma.organizacao.count());

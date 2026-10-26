@@ -60,6 +60,8 @@ afirmar(Array.isArray(ajv.detalhes) && (ajv.detalhes as { campo?: string }[])[0]
 const p2002 = traduzirErro(Object.assign(new Error("Unique constraint failed"), { code: "P2002", meta: { target: ["cnpj"] } }));
 afirmar(p2002.statusCode === 409 && p2002.mensagem.includes("cnpj"), "Prisma P2002 (UNIQUE) -> 409 citando o campo");
 afirmar(traduzirErro(Object.assign(new Error("fk"), { code: "P2003" })).statusCode === 422, "Prisma P2003 (FK) -> 422");
+const p2004 = traduzirErro(Object.assign(new Error("constraint failed"), { code: "P2004" }));
+afirmar(p2004.statusCode === 422 && p2004.erro === "RESTRICAO_BANCO", "Prisma P2004 (constraint) -> 422 generico");
 afirmar(traduzirErro(Object.assign(new Error("nf"), { code: "P2025" })).statusCode === 404, "Prisma P2025 -> 404");
 afirmar(traduzirErro(new Error('new row for relation "Movimentacao" violates check constraint "ck_x"')).statusCode === 422, "violacao de CHECK do banco -> 422");
 afirmar(traduzirErro(Object.assign(new Error("Unexpected token"), { statusCode: 400 })).statusCode === 400, "erro 4xx do Fastify (JSON malformado) preserva o status");
