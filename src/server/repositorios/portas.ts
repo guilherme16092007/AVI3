@@ -7,6 +7,7 @@ import {
   TipoMovimentacao,
   TipoOrganizacao,
 } from "../../types";
+import { FormatoSaida, OrigemRelatorio, PermissaoApi, StatusTarefa, TipoRelatorio, TipoTarefa } from "../tiposAv3";
 
 export interface Paginacao {
   limite: number;
@@ -246,6 +247,213 @@ export interface ParametroRepositorio {
   ): Promise<ParametroRegistro>;
 }
 
+// ---------------------------------------------------------------------
+// AV3: chaves de API, relatorios analiticos, fila de tarefas e leitura analitica
+// ---------------------------------------------------------------------
+
+export interface ChaveApiRegistro {
+  id: string;
+  nome: string;
+  prefixo: string;
+  hashChave: string;
+  permissoes: PermissaoApi[];
+  organizacaoId: string | null;
+  usuarioServicoId: string | null;
+  limitePorMinuto: number;
+  expiraEm: Date | null;
+  revogadaEm: Date | null;
+  ultimoUsoEm: Date | null;
+  criadoPorId: string;
+  criadoEm: Date;
+  atualizadoEm: Date;
+  versao: number;
+}
+
+export interface NovaChaveApi {
+  id: string;
+  nome: string;
+  prefixo: string;
+  hashChave: string;
+  permissoes: PermissaoApi[];
+  organizacaoId: string | null;
+  usuarioServicoId: string | null;
+  limitePorMinuto: number;
+  expiraEm: Date | null;
+  criadoPorId: string;
+}
+
+export interface ChaveApiRepositorio {
+  criar(dados: NovaChaveApi): Promise<ChaveApiRegistro>;
+  buscarPorId(id: string): Promise<ChaveApiRegistro | null>;
+  buscarPorPrefixo(prefixo: string): Promise<ChaveApiRegistro | null>;
+  listar(paginacao: Paginacao): Promise<Pagina<ChaveApiRegistro>>;
+  revogar(id: string, versaoEsperada: number, quando: Date): Promise<ChaveApiRegistro>;
+  registrarUso(id: string, quando: Date): Promise<void>;
+}
+
+export interface NovaPrevisaoTipo {
+  id: string;
+  tipoEquipamento: TipoEquipamento;
+  modelo: string;
+  amostras: number;
+  inclinacaoPorDia: number;
+  interceptoEstado: number;
+  r2: number | null;
+  diasRestantesMediana: number | null;
+}
+
+export interface NovaPrevisaoEquipamento {
+  id: string;
+  equipamentoId: string;
+  estadoAtual: EstadoFisico;
+  diasRestantes: number | null;
+  dataProjetadaInservivel: Date | null;
+}
+
+export interface NovoRelatorio {
+  id: string;
+  tipo: TipoRelatorio;
+  origem: OrigemRelatorio;
+  organizacaoId: string | null;
+  parametros: unknown;
+  resultado: unknown;
+  versaoModelo: string;
+  geradoEm: Date;
+  solicitanteId: string | null;
+  chaveApiId: string | null;
+  previsoesTipo?: NovaPrevisaoTipo[];
+  previsoesEquipamento?: NovaPrevisaoEquipamento[];
+}
+
+export interface RelatorioRegistro {
+  id: string;
+  tipo: TipoRelatorio;
+  origem: OrigemRelatorio;
+  organizacaoId: string | null;
+  parametros: unknown;
+  resultado: unknown;
+  versaoModelo: string;
+  geradoEm: Date;
+  solicitanteId: string | null;
+  chaveApiId: string | null;
+}
+
+/** `organizacaoId` indefinido = sem filtro; `null` = apenas relatorios globais; string = apenas da organizacao. */
+export interface FiltroRelatorio {
+  tipo?: TipoRelatorio;
+  organizacaoId?: string | null;
+}
+
+/** Previsao individual cuja "realizacao" (equipamento chegou a INSERVIVEL) ja aconteceu. */
+export interface PrevisaoRealizada {
+  relatorioId: string;
+  equipamentoId: string;
+  geradoEm: Date;
+  diasRestantesPrevistos: number | null;
+  inservivelEm: Date;
+}
+
+export interface RelatorioRepositorio {
+  salvar(dados: NovoRelatorio): Promise<RelatorioRegistro>;
+  buscarPorId(id: string): Promise<RelatorioRegistro | null>;
+  ultimo(tipo: TipoRelatorio, organizacaoId: string | null): Promise<RelatorioRegistro | null>;
+  listar(filtro: FiltroRelatorio, paginacao: Paginacao): Promise<Pagina<RelatorioRegistro>>;
+  previsoesRealizadas(): Promise<PrevisaoRealizada[]>;
+}
+
+export interface TarefaRegistro {
+  id: string;
+  tipo: TipoTarefa;
+  status: StatusTarefa;
+  payload: unknown;
+  formato: FormatoSaida;
+  tentativas: number;
+  maxTentativas: number;
+  proximaExecucaoEm: Date;
+  iniciadaEm: Date | null;
+  bloqueadaAte: Date | null;
+  concluidaEm: Date | null;
+  ultimoErro: string | null;
+  relatorioId: string | null;
+  resultadoConteudo: string | null;
+  resultadoMime: string | null;
+  chaveIdempotencia: string | null;
+  solicitanteId: string | null;
+  chaveApiId: string | null;
+  criadoEm: Date;
+  atualizadoEm: Date;
+  versao: number;
+}
+
+export interface NovaTarefa {
+  id: string;
+  tipo: TipoTarefa;
+  payload: unknown;
+  formato: FormatoSaida;
+  maxTentativas: number;
+  proximaExecucaoEm: Date;
+  chaveIdempotencia: string | null;
+  solicitanteId: string | null;
+  chaveApiId: string | null;
+}
+
+export interface FiltroTarefa {
+  status?: StatusTarefa;
+  chaveApiId?: string;
+}
+
+export interface ResultadoTarefa {
+  relatorioId: string;
+  conteudo: string;
+  mime: string;
+}
+
+export interface TarefaRepositorio {
+  /** Idempotente: se `chaveIdempotencia` ja existir, devolve a tarefa existente com `criada = false`. */
+  criar(dados: NovaTarefa): Promise<{ tarefa: TarefaRegistro; criada: boolean }>;
+  buscarPorId(id: string): Promise<TarefaRegistro | null>;
+  listar(filtro: FiltroTarefa, paginacao: Paginacao): Promise<Pagina<TarefaRegistro>>;
+  contarAtivas(chaveApiId: string): Promise<number>;
+  /** Reivindica ate `limite` tarefas PENDENTES vencidas (atomico por tarefa); incrementa `tentativas` e define o lease. */
+  reivindicar(agora: Date, leaseMs: number, limite: number): Promise<TarefaRegistro[]>;
+  concluir(id: string, resultado: ResultadoTarefa, agora: Date): Promise<TarefaRegistro>;
+  /** `proximaExecucaoEm = null` marca a tarefa como FALHA definitiva; caso contrario volta a PENDENTE para novo retry. */
+  registrarFalha(id: string, erro: string, proximaExecucaoEm: Date | null, agora: Date): Promise<TarefaRegistro>;
+  /** Tarefas EM_EXECUCAO com lease vencido (worker morreu): voltam a PENDENTE ou, se esgotadas, FALHA. */
+  liberarExpiradas(agora: Date): Promise<number>;
+}
+
+export interface MovimentacaoAnalitica {
+  tipo: TipoMovimentacao;
+  criadoEm: Date;
+  usuarioId: string;
+  usuarioUsername: string;
+  estadoFisicoAnterior: EstadoFisico | null;
+  estadoFisicoNovo: EstadoFisico | null;
+  statusNovo: StatusEquipamento | null;
+}
+
+/** Visao de leitura (read model) usada pelos calculos analiticos: equipamento + lote + historico ordenado. */
+export interface EquipamentoAnalitico {
+  id: string;
+  loteId: string;
+  organizacaoId: string;
+  loteDataEntrada: Date;
+  tipo: TipoEquipamento;
+  numeroSerie: string;
+  fabricante: string | null;
+  modelo: string | null;
+  codigoBarrasInterno: string;
+  estadoFisico: EstadoFisico;
+  status: StatusEquipamento;
+  criadoEm: Date;
+  movimentacoes: MovimentacaoAnalitica[];
+}
+
+export interface AnaliseRepositorio {
+  listarEquipamentos(filtro: { organizacaoId?: string }): Promise<EquipamentoAnalitico[]>;
+}
+
 export interface Repositorios {
   usuarios: UsuarioRepositorio;
   organizacoes: OrganizacaoRepositorio;
@@ -254,6 +462,10 @@ export interface Repositorios {
   equipamentos: EquipamentoRepositorio;
   movimentacoes: MovimentacaoRepositorio;
   parametros: ParametroRepositorio;
+  chavesApi: ChaveApiRepositorio;
+  relatorios: RelatorioRepositorio;
+  tarefas: TarefaRepositorio;
+  analise: AnaliseRepositorio;
 }
 
 export interface ExecutorTransacao {

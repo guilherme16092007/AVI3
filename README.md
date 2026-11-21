@@ -10,8 +10,28 @@ Plataforma de logística reversa de resíduos eletroeletrônicos. Conecta organi
 |---|---|---|---|---|
 | **AV1** | Sistema de linha de comando (CLI) | Arquivos de texto cifrados (AES-256) + journal | [Seção AV1](#av1--cli-com-persistência-em-arquivos-cifrados) | [docs/ARQUITETURA.md](docs/ARQUITETURA.md), [docs/SEGURANCA.md](docs/SEGURANCA.md) |
 | **AV2** | Servidor HTTP monolítico com API REST | PostgreSQL via Prisma ORM | [Seção AV2](#av2--api-rest-fastify--prisma--postgresql) | [docs/AV2_ARQUITETURA.md](docs/AV2_ARQUITETURA.md), [docs/API.md](docs/API.md), [docs/AV2_BANCO_DE_DADOS.md](docs/AV2_BANCO_DE_DADOS.md), [docs/AV2_TESTES.md](docs/AV2_TESTES.md) |
+| **AV3** | Camada analítica + API pública (chaves, rate limit, OpenAPI) + fila de tarefas assíncronas | PostgreSQL (novas tabelas, migration aditiva) | [Seção AV3](#av3--analítica-api-pública-e-processamento-assíncrono) | [docs/RELATORIO_TECNICO_AV3.md](docs/RELATORIO_TECNICO_AV3.md), [docs/AV3_API_PUBLICA.md](docs/AV3_API_PUBLICA.md), [docs/AV3_INSTALACAO_E_TESTES.md](docs/AV3_INSTALACAO_E_TESTES.md) |
 
-A AV2 **evolui** a AV1 sem descartá-la: o CLI continua funcionando, e a API reutiliza o domínio orientado a objetos, os validadores de negócio, o hash de senhas e os tipos da AV1 (ver [docs/AV2_ARQUITETURA.md](docs/AV2_ARQUITETURA.md)).
+A AV3 **evolui** a AV2 sem removê-la (rotas, tabelas e testes da AV2 permanecem). A AV2 **evolui** a AV1 sem descartá-la: o CLI continua funcionando, e a API reutiliza o domínio orientado a objetos, os validadores de negócio, o hash de senhas e os tipos da AV1 (ver [docs/AV2_ARQUITETURA.md](docs/AV2_ARQUITETURA.md)).
+
+---
+
+# AV3 — Analítica, API pública e processamento assíncrono
+
+Continuação direta da AV2 (mesma stack e mesma organização Controller → Service → Repository; só adições):
+
+- **Camada analítica** (`src/server/analise`, serviços `Analise*Servico`): eficiência operacional (tempo de processamento de lotes, operadores, períodos, gargalos), rentabilidade por tipo/estado/marca/modelo e **vida útil remanescente** por regressão linear (OLS). Resultados persistidos (`RelatorioAnalitico`, `PrevisaoVidaUtilTipo`, `PrevisaoEquipamento`) com histórico e medição de acurácia previsão × realização.
+- **API pública versionada** `/api/v1/public`: chaves de API (`X-API-Key`) com permissões e escopo por organização, **limite de requisições por chave** (429 + `Retry-After`), documentação **OpenAPI/Swagger UI** em `/api/v1/public/docs`. Endpoints internos/administrativos separados em `/api/v1/internal` e `/api/v1/admin` (JWT). Rotas da AV2 inalteradas.
+- **Fila de tarefas** no PostgreSQL (sem Redis → funciona igual em Windows e Linux): `POST /relatorios` responde **202**, o worker gera o relatório (JSON/CSV) com **retry e backoff exponencial**, o cliente consulta o status e baixa o arquivo. Agendador cron (`ANALISE_CRON`, padrão 02:00) mantém os relatórios globais atualizados.
+
+```bash
+npx prisma migrate deploy   # aplica a migration aditiva da AV3
+npm run build:server && npm run start:server      # API + worker + agendador
+npm run start:worker                              # (opcional) worker em processo separado
+npm run test:av3                                  # testes da AV3
+```
+
+Guia completo: [docs/AV3_INSTALACAO_E_TESTES.md](docs/AV3_INSTALACAO_E_TESTES.md) · API: [docs/AV3_API_PUBLICA.md](docs/AV3_API_PUBLICA.md) · decisões arquiteturais, retry e plano de escala: [docs/RELATORIO_TECNICO_AV3.md](docs/RELATORIO_TECNICO_AV3.md).
 
 ---
 

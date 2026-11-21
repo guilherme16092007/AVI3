@@ -1,5 +1,5 @@
-import { EquipamentoFactory } from "../../factories/EquipamentoFactory";
-import { Dependencias, EquipamentoRegistro } from "../repositorios/portas";
+import { Dependencias } from "../repositorios/portas";
+import { reconstruirDominio } from "./dominio";
 import { Ator, exigirPapel, PERMISSOES } from "./politicas";
 import { arredondar, exigirEncontrado, nomeEstadoFisico } from "./util";
 
@@ -18,7 +18,7 @@ export class RelatorioServico {
 
     const linhas = equipamentos.map((registro) => {
       const valorResidual = arredondar(
-        this.reconstruirDominio(registro).calcularValorResidual(parametros.coeficienteDepreciacaoAnual)
+        reconstruirDominio(registro).calcularValorResidual(parametros.coeficienteDepreciacaoAnual)
       );
       const impostoEstimado = arredondar((valorResidual * aliquota) / 100);
       return {
@@ -26,7 +26,7 @@ export class RelatorioServico {
         tipo: registro.tipo,
         estadoFisico: nomeEstadoFisico(registro.estadoFisico),
         status: registro.status,
-        potencialRecuperacao: this.reconstruirDominio(registro).potencialRecuperacao(),
+        potencialRecuperacao: reconstruirDominio(registro).potencialRecuperacao(),
         valorResidual,
         impostoEstimado,
         valorLiquido: arredondar(valorResidual - impostoEstimado),
@@ -50,20 +50,5 @@ export class RelatorioServico {
         valorLiquido: soma("valorLiquido"),
       },
     };
-  }
-
-  private reconstruirDominio(registro: EquipamentoRegistro) {
-    const dominio = EquipamentoFactory.criar(registro.tipo, {
-      id: registro.id,
-      loteId: registro.loteId,
-      numeroSerie: registro.numeroSerie,
-      fabricante: registro.fabricante ?? undefined,
-      modelo: registro.modelo ?? undefined,
-      codigoBarrasInterno: registro.codigoBarrasInterno,
-    });
-    dominio.estadoFisico = registro.estadoFisico;
-    dominio.status = registro.status;
-    Object.assign(dominio, { criadoEm: registro.criadoEm.toISOString() });
-    return dominio;
   }
 }

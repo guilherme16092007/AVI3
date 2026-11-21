@@ -13,10 +13,11 @@ import {
   Repositorios,
   UsuarioRegistro,
 } from "../../src/server/repositorios/portas";
+import { criarReposAv3, EstadoAv3 } from "./memoriaAv3";
 
 type LoteArmazenado = Omit<LoteRegistro, "quantidadeEquipamentos">;
 
-interface Estado {
+interface Estado extends EstadoAv3 {
   usuarios: UsuarioRegistro[];
   organizacoes: OrganizacaoRegistro[];
   contratos: ContratoRegistro[];
@@ -46,6 +47,10 @@ export class BancoMemoria implements Dependencias {
     equipamentos: [],
     movimentacoes: [],
     parametro: null,
+    chavesApi: [],
+    relatorios: [],
+    previsoesEquipamento: [],
+    tarefas: [],
   };
   falhas = new Set<string>();
 
@@ -269,6 +274,7 @@ export class BancoMemoria implements Dependencias {
           return p;
         },
       },
+      ...criarReposAv3(() => banco.estado),
     };
 
     this.transacao = {

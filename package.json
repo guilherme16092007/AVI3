@@ -1,7 +1,7 @@
 {
   "name": "greencode",
-  "version": "2.0.0",
-  "description": "Plataforma de logistica reversa de residuos eletroeletronicos: AV1 (CLI com persistencia em arquivos cifrados) e AV2 (API REST monolitica com Fastify, Prisma e PostgreSQL)",
+  "version": "3.0.0",
+  "description": "Plataforma de logistica reversa de residuos eletroeletronicos: AV1 (CLI com persistencia em arquivos cifrados) e AV2 (API REST monolitica com Fastify, Prisma e PostgreSQL) e AV3 (camada analitica, API publica com chaves e fila de tarefas)",
   "main": "dist/index.js",
   "bin": {
     "greencode": "dist/index.js"
@@ -14,13 +14,16 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('data',{recursive:true,force:true});require('fs').rmSync('.greencode',{recursive:true,force:true})\"",
-    "test": "npm run test:av1 && npm run test:av2",
+    "test": "npm run test:av1 && npm run test:av2 && npm run test:av3",
     "test:av1": "tsx tests/journey.test.ts",
     "test:av2": "tsx tests/server/servicos.test.ts && tsx tests/server/utilitarios.test.ts",
+    "test:av3": "tsx tests/server/analise.test.ts && tsx tests/server/fila.test.ts && tsx tests/server/publica.test.ts",
     "test:http": "tsx tests/server/http.test.ts",
     "build:server": "prisma generate && tsc -p tsconfig.server.json",
     "start:server": "node dist/server/server.js",
     "dev:server": "tsx watch src/server/server.ts",
+    "start:worker": "node dist/server/worker.js",
+    "dev:worker": "tsx watch src/server/worker.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",

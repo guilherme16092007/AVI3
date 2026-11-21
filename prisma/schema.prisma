@@ -68,6 +68,11 @@ model Usuario {
   versao        Int       @default(1)
 
   movimentacoes Movimentacao[]
+
+  chavesCriadas ChaveApi[]           @relation("ChaveCriadaPor")
+  chavesServico ChaveApi[]           @relation("ChaveUsuarioServico")
+  relatorios    RelatorioAnalitico[]
+  tarefas       Tarefa[]
 }
 
 model Organizacao {
@@ -86,18 +91,21 @@ model Organizacao {
 
   contrato Contrato?
   lotes    Lote[]
+
+  chavesApi  ChaveApi[]
+  relatorios RelatorioAnalitico[]
 }
 
 model Contrato {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizacaoId  String   @unique @db.Uuid
-  numero         String   @unique
-  dataInicio     DateTime @db.Date
-  dataFim        DateTime @db.Date
-  clausulas      Json     @default("{}")
-  criadoEm       DateTime @default(now())
-  atualizadoEm   DateTime @updatedAt
-  versao         Int      @default(1)
+  id            String   @id @default(uuid()) @db.Uuid
+  organizacaoId String   @unique @db.Uuid
+  numero        String   @unique
+  dataInicio    DateTime @db.Date
+  dataFim       DateTime @db.Date
+  clausulas     Json     @default("{}")
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+  versao        Int      @default(1)
 
   organizacao Organizacao @relation(fields: [organizacaoId], references: [id])
 }
@@ -133,8 +141,9 @@ model Equipamento {
   atualizadoEm        DateTime          @updatedAt
   versao              Int               @default(1)
 
-  lote          Lote           @relation(fields: [loteId], references: [id])
+  lote          Lote                  @relation(fields: [loteId], references: [id])
   movimentacoes Movimentacao[]
+  previsoes     PrevisaoEquipamento[]
 
   @@index([loteId])
   @@index([status])
@@ -168,4 +177,159 @@ model Parametro {
   limiteDiasRetroativosLote   Int      @default(90)
   atualizadoEm                DateTime @updatedAt
   versao                      Int      @default(1)
+}
+
+// =====================================================================
+// AV3 - camada analitica, API publica (chaves) e fila de tarefas
+// (somente adicoes: nenhuma tabela/coluna da AV2 foi alterada)
+// =====================================================================
+
+enum PermissaoApi {
+  RASTREABILIDADE_LER
+  LOTES_LER
+  LOTES_ESCREVER
+  ANALISES_LER
+  RELATORIOS_GERAR
+}
+
+enum TipoRelatorio {
+  EFICIENCIA_OPERACIONAL
+  RENTABILIDADE_EQUIPAMENTO
+  VIDA_UTIL_REMANESCENTE
+}
+
+enum OrigemRelatorio {
+  MANUAL
+  AGENDADO
+  API
+}
+
+enum StatusTarefa {
+  PENDENTE
+  EM_EXECUCAO
+  CONCLUIDA
+  FALHA
+}
+
+enum FormatoSaida {
+  JSON
+  CSV
+}
+
+/// Chave de API de um parceiro externo. O segredo em claro NUNCA e armazenado: apenas o hash SHA-256.
+model ChaveApi {
+  id               String         @id @default(uuid()) @db.Uuid
+  nome             String
+  prefixo          String         @unique @db.VarChar(16)
+  hashChave        String         @db.VarChar(64)
+  permissoes       PermissaoApi[]
+  organizacaoId    String?        @db.Uuid
+  usuarioServicoId String?        @db.Uuid
+  limitePorMinuto  Int            @default(60)
+  expiraEm         DateTime?
+  revogadaEm       DateTime?
+  ultimoUsoEm      DateTime?
+  criadoPorId      String         @db.Uuid
+  criadoEm         DateTime       @default(now())
+  atualizadoEm     DateTime       @updatedAt
+  versao           Int            @default(1)
+
+  organizacao    Organizacao?         @relation(fields: [organizacaoId], references: [id])
+  usuarioServico Usuario?             @relation("ChaveUsuarioServico", fields: [usuarioServicoId], references: [id])
+  criadoPor      Usuario              @relation("ChaveCriadaPor", fields: [criadoPorId], references: [id])
+  relatorios     RelatorioAnalitico[]
+  tarefas        Tarefa[]
+
+  @@index([organizacaoId])
+}
+
+/// Historico de relatorios analiticos (um registro por execucao), permitindo comparar previsoes com realizacoes.
+model RelatorioAnalitico {
+  id            String          @id @default(uuid()) @db.Uuid
+  tipo          TipoRelatorio
+  origem        OrigemRelatorio
+  organizacaoId String?         @db.Uuid
+  parametros    Json            @default("{}")
+  resultado     Json
+  versaoModelo  String          @default("1")
+  geradoEm      DateTime        @default(now())
+  solicitanteId String?         @db.Uuid
+  chaveApiId    String?         @db.Uuid
+
+  organizacao          Organizacao?           @relation(fields: [organizacaoId], references: [id])
+  solicitante          Usuario?               @relation(fields: [solicitanteId], references: [id])
+  chaveApi             ChaveApi?              @relation(fields: [chaveApiId], references: [id])
+  previsoesTipo        PrevisaoVidaUtilTipo[]
+  previsoesEquipamento PrevisaoEquipamento[]
+  tarefas              Tarefa[]
+
+  @@index([tipo, organizacaoId, geradoEm])
+  @@index([geradoEm])
+}
+
+/// Parametros do modelo de regressao por tipo de equipamento (um por relatorio de vida util).
+model PrevisaoVidaUtilTipo {
+  id                   String          @id @default(uuid()) @db.Uuid
+  relatorioId          String          @db.Uuid
+  tipoEquipamento      TipoEquipamento
+  modelo               String
+  amostras             Int
+  inclinacaoPorDia     Float
+  interceptoEstado     Float
+  r2                   Float?
+  diasRestantesMediana Float?
+  geradoEm             DateTime        @default(now())
+
+  relatorio RelatorioAnalitico @relation(fields: [relatorioId], references: [id], onDelete: Cascade)
+
+  @@unique([relatorioId, tipoEquipamento])
+}
+
+/// Previsao individual de quando cada equipamento atinge INSERVIVEL (para medir acuracia depois).
+model PrevisaoEquipamento {
+  id                      String    @id @default(uuid()) @db.Uuid
+  relatorioId             String    @db.Uuid
+  equipamentoId           String    @db.Uuid
+  estadoAtual             Int
+  diasRestantes           Float?
+  dataProjetadaInservivel DateTime?
+  geradoEm                DateTime  @default(now())
+
+  relatorio   RelatorioAnalitico @relation(fields: [relatorioId], references: [id], onDelete: Cascade)
+  equipamento Equipamento        @relation(fields: [equipamentoId], references: [id])
+
+  @@unique([relatorioId, equipamentoId])
+  @@index([equipamentoId, geradoEm])
+}
+
+/// Fila de tarefas assincronas persistida no PostgreSQL (sem dependencia de Redis).
+model Tarefa {
+  id                String       @id @default(uuid()) @db.Uuid
+  tipo              String       @default("GERAR_RELATORIO")
+  status            StatusTarefa @default(PENDENTE)
+  payload           Json         @default("{}")
+  formato           FormatoSaida @default(JSON)
+  tentativas        Int          @default(0)
+  maxTentativas     Int          @default(3)
+  proximaExecucaoEm DateTime     @default(now())
+  iniciadaEm        DateTime?
+  bloqueadaAte      DateTime?
+  concluidaEm       DateTime?
+  ultimoErro        String?
+  relatorioId       String?      @db.Uuid
+  resultadoConteudo String?
+  resultadoMime     String?
+  chaveIdempotencia String?      @unique
+  solicitanteId     String?      @db.Uuid
+  chaveApiId        String?      @db.Uuid
+  criadoEm          DateTime     @default(now())
+  atualizadoEm      DateTime     @updatedAt
+  versao            Int          @default(1)
+
+  relatorio   RelatorioAnalitico? @relation(fields: [relatorioId], references: [id])
+  solicitante Usuario?            @relation(fields: [solicitanteId], references: [id])
+  chaveApi    ChaveApi?           @relation(fields: [chaveApiId], references: [id])
+
+  @@index([status, proximaExecucaoEm])
+  @@index([chaveApiId, status])
 }

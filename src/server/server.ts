@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { construirApp } from "./app";
 import { carregarAmbiente } from "./config/env";
+import { criarInfraFila } from "./fila/iniciarFila";
 import { criarRepositoriosPrisma, ExecutorTransacaoPrisma } from "./repositorios/prisma";
 import { criarServicos } from "./servicos";
 
@@ -9,26 +10,37 @@ async function main(): Promise<void> {
   const ambiente = carregarAmbiente();
 
   const prisma = new PrismaClient();
-  const servicos = criarServicos({
-    repos: criarRepositoriosPrisma(prisma),
-    transacao: new ExecutorTransacaoPrisma(prisma),
-  });
+  const repos = criarRepositoriosPrisma(prisma);
+  const servicos = criarServicos(
+    { repos, transacao: new ExecutorTransacaoPrisma(prisma) },
+    {
+      limitePadraoChavePorMinuto: ambiente.API_LIMITE_PADRAO_POR_MINUTO,
+      maxTentativasTarefa: ambiente.JOBS_MAX_TENTATIVAS,
+      limiteTarefasAtivasPorChave: ambiente.JOBS_LIMITE_ATIVAS_POR_CHAVE,
+    }
+  );
 
   const app = await construirApp({
     servicos,
     jwtSecret: ambiente.JWT_SECRET,
     jwtExpiresIn: ambiente.JWT_EXPIRES_IN,
     logLevel: ambiente.LOG_LEVEL,
+    limiteFalhasChavePorIp: ambiente.API_LIMITE_IP_POR_MINUTO,
     verificarBanco: async () => {
       await prisma.$queryRaw`SELECT 1`;
     },
   });
 
+  // Worker + agendador embutidos (WORKER_HABILITADO=false para rodar apenas a API e usar processos `worker` dedicados)
+  const fila = ambiente.WORKER_HABILITADO ? criarInfraFila(servicos, repos, ambiente, app.log) : undefined;
+
   app.addHook("onClose", async () => {
+    await fila?.parar();
     await prisma.$disconnect();
   });
 
   await app.listen({ port: ambiente.PORT, host: ambiente.HOST });
+  fila?.iniciar();
 
   let encerrando = false;
   const encerrar = async (sinal: string): Promise<void> => {

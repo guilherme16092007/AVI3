@@ -6,6 +6,7 @@ import { criarRepositoriosPrisma, ExecutorTransacaoPrisma } from "../src/server/
 import { criarServicos, Servicos } from "../src/server/servicos";
 import { EquipamentoEntrada } from "../src/server/servicos/LoteServico";
 import { Ator } from "../src/server/servicos/politicas";
+import { PermissaoApi, TipoRelatorio } from "../src/server/tiposAv3";
 import { Papel, StatusEquipamento, TipoEquipamento, TipoOrganizacao } from "../src/types";
 import { CnpjUtils } from "../src/validation/CnpjValidator";
 
@@ -143,6 +144,17 @@ async function popular(prisma: PrismaClient): Promise<void> {
   await E.alterarStatus(gestor, monitor, { novoStatus: StatusEquipamento.DESCARTADO, observacao: "Painel trincado; descarte seguro conforme contrato" });
   await E.triagem(gestor, id(lote3, "BC-U-0002"), { estadoFisico: "BOM" });
 
+  // ---------------- AV3: chave de API de demonstracao + relatorios analiticos iniciais ----------------
+  const parceiro = await servicos.chavesApi.criar(admin, {
+    nome: "Parceiro demonstracao (Hospital Central)",
+    permissoes: [PermissaoApi.RASTREABILIDADE_LER, PermissaoApi.LOTES_LER, PermissaoApi.ANALISES_LER, PermissaoApi.RELATORIOS_GERAR],
+    organizacaoId: hospital.id,
+    limitePorMinuto: 120,
+  });
+  for (const tipo of Object.values(TipoRelatorio)) {
+    await servicos.analises.gerarManual(admin, tipo, null);
+  }
+
   console.log("\n==============================================================");
   console.log(" Seed concluido");
   console.log("==============================================================");
@@ -154,6 +166,10 @@ async function popular(prisma: PrismaClient): Promise<void> {
   console.log(`   Organizacao SEM contrato                                      : ${varejo.id}`);
   console.log(`   Lote com 5 equipamentos                                       : ${lote2.id}`);
   console.log(`   Lote da organizacao sem contrato                              : ${lote4.id}`);
+  console.log("\n AV3 - API publica (chave de demonstracao, exibida UMA vez; nao e gravada em arquivo):");
+  console.log(`   X-API-Key: ${parceiro.chaveSecreta}`);
+  console.log("   Documentacao: http://localhost:3000/api/v1/public/docs");
+  console.log("   Relatorios analiticos globais ja gerados (origem MANUAL) e agendados diariamente pelo worker.");
   console.log("==============================================================\n");
 }
 

@@ -36,6 +36,12 @@ export class ErroConflito extends ErroHttp {
   }
 }
 
+export class ErroLimiteExcedido extends ErroHttp {
+  constructor(mensagem: string, codigo = "LIMITE_REQUISICOES", detalhes?: unknown) {
+    super(429, codigo, mensagem, detalhes);
+  }
+}
+
 export interface RespostaErro {
   statusCode: number;
   erro: string;

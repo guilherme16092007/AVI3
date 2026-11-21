@@ -17,6 +17,9 @@ export const PERMISSOES = {
   loteCriar: [Papel.ADMINISTRADOR, Papel.GESTOR_ALMOXARIFADO],
   equipamentoOperar: [Papel.ADMINISTRADOR, Papel.GESTOR_ALMOXARIFADO],
   relatorioValor: [Papel.ADMINISTRADOR, Papel.AUDITOR],
+  chaveApiGerenciar: [Papel.ADMINISTRADOR],
+  analiseVer: [Papel.ADMINISTRADOR, Papel.AUDITOR],
+  analiseGerar: [Papel.ADMINISTRADOR, Papel.AUDITOR],
 } as const satisfies Record<string, readonly Papel[]>;
 
 export function exigirPapel(ator: Ator, permitidos: readonly Papel[]): void {

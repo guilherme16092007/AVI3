@@ -32,6 +32,7 @@ import {
   UsuarioRegistro,
   UsuarioRepositorio,
 } from "../portas";
+import { AnaliseRepositorioPrisma, ChaveApiRepositorioPrisma, RelatorioRepositorioPrisma, TarefaRepositorioPrisma } from "./av3";
 
 type Db = Prisma.TransactionClient;
 
@@ -513,6 +514,10 @@ export function criarRepositoriosPrisma(db: Db): Repositorios {
     equipamentos: new EquipamentoRepositorioPrisma(db),
     movimentacoes: new MovimentacaoRepositorioPrisma(db),
     parametros: new ParametroRepositorioPrisma(db),
+    chavesApi: new ChaveApiRepositorioPrisma(db),
+    relatorios: new RelatorioRepositorioPrisma(db),
+    tarefas: new TarefaRepositorioPrisma(db),
+    analise: new AnaliseRepositorioPrisma(db),
   };
 }
 
